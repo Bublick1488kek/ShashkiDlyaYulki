@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Кото-шашки — Telegram Mini App</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --bg-color: var(--tg-theme-bg-color, #181116);
+      --secondary-bg: var(--tg-theme-secondary-bg-color, #271b24);
+      --text-color: var(--tg-theme-text-color, #fff2f8);
+      --hint-color: var(--tg-theme-hint-color, #c49eb4);
+      --button-color: var(--tg-theme-button-color, #ff5ca8);
+      --button-text: var(--tg-theme-button-text-color, #ffffff);
+      --border-color: rgba(255, 166, 212, 0.16);
+      --light-sq: #ffe6f2;
+      --dark-sq: #ff85be;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    .app {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      height: 100dvh;
+      max-width: 460px;
+      margin: 0 auto;
+      padding: 12px 14px 18px;
+      gap: 10px;
+    }
+
+    .header {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .stat-box {
+      flex: 1;
+      background: var(--secondary-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 7px 10px;
+      text-align: center;
+    }
+
+    .stat-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--hint-color);
+    }
+
+    .stat-value {
+      font-size: 15px;
+      font-weight: 700;
+      margin-top: 2px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .status-bar {
+      width: 100%;
+      background: var(--secondary-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 9px 12px;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .turn-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      display: inline-block;
+      border: 1.5px solid #ff99cc;
+    }
+
+    .board-wrapper {
+      position: relative;
+      width: min(92vw, 56dvh, 400px);
+      height: min(92vw, 56dvh, 400px);
+      background: #ff69b4;
+      padding: 6px;
+      border-radius: 16px;
+      box-shadow: 0 12px 32px rgba(255, 77, 166, 0.25);
+      border: 2px solid #ffb3d9;
+    }
+
+    .board {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      grid-template-rows: repeat(8, 1fr);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .cell {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .cell.light {
+      background-color: var(--light-sq);
+    }
+
+    .cell.dark {
+      background-color: var(--dark-sq);
+    }
+
+    .cell.selected {
+      box-shadow: inset 0 0 0 3px #fff066;
+      background-color: #ff5ca8;
+    }
+
+    .cell.hint::after {
+      content: "";
+      width: 34%;
+      height: 34%;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.95);
+      pointer-events: none;
+    }
+
+    .cell.capture-hint::after {
+      content: "";
+      width: 42%;
+      height: 42%;
+      border-radius: 50%;
+      background: rgba(255, 51, 102, 0.92);
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 10px rgba(255, 51, 102, 0.9);
+      pointer-events: none;
+    }
+
+    .cat-piece {
+      width: 84%;
+      height: 84%;
+      position: relative;
+      transition: transform 0.14s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .cat-piece svg {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      filter: drop-shadow(0 3px 4px rgba(120, 15, 65, 0.35));
+    }
+
+    .cat-piece.king::after {
+      content: "👑";
+      position: absolute;
+      top: -9px;
+      right: -4px;
+      font-size: 15px;
+      line-height: 1;
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+      pointer-events: none;
+    }
+
+    .cell.selected .cat-piece {
+      transform: scale(1.1);
+    }
+
+    .controls {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .btn {
+      background: var(--secondary-bg);
+      color: var(--text-color);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 12px 10px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .btn.primary {
+      background: var(--button-color);
+      color: var(--button-text);
+      border: none;
+    }
+
+    .btn:active {
+      transform: scale(0.97);
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(24, 17, 22, 0.9);
+      backdrop-filter: blur(4px);
+      border-radius: 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 20px;
+      gap: 12px;
+      z-index: 10;
+    }
+
+    .overlay.hidden {
+      display: none;
+    }
+
+    .overlay h2 {
+      font-size: 22px;
+      font-weight: 800;
+    }
+
+    .overlay p {
+      font-size: 13px;
+      color: var(--hint-color);
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <div class="stat-box">
+        <div class="stat-label">Белые котики</div>
+        <div class="stat-value" id="whiteCount">12</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Режим</div>
+        <div class="stat-value" id="modeLabel">Против бота</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Чёрные котики</div>
+        <div class="stat-value" id="blackCount">12</div>
+      </div>
+    </div>
+
+    <div class="status-bar" id="statusBar">
+      <span class="turn-dot" id="turnDot" style="background:#ffffff;"></span>
+      <span id="statusText">Ход белых котиков</span>
+    </div>
+
+    <div class="board-wrapper">
+      <div class="board" id="board"></div>
+      <div class="overlay hidden" id="overlay">
+        <h2 id="winnerTitle">Победа!</h2>
+        <p id="winnerDesc">Партия завершена</p>
+        <button class="btn primary" style="width: 180px;" id="playAgainBtn">Новая партия</button>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="btn" id="modeBtn">Режим: Бот</button>
+      <button class="btn primary" id="restartBtn">Заново</button>
+    </div>
+  </div>
+
+  <script>
+    const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+    if (tg) {
+      tg.ready();
+      tg.expand();
+      if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
+    }
+
+    function haptic(type = 'light') {
+      if (!tg || !tg.HapticFeedback) return;
+      if (type === 'success' || type === 'error') {
+        tg.HapticFeedback.notificationOccurred(type);
+      } else {
+        tg.HapticFeedback.impactOccurred(type);
+      }
+    }
+
+    const boardEl = document.getElementById('board');
+    const whiteCountEl = document.getElementById('whiteCount');
+    const blackCountEl = document.getElementById('blackCount');
+    const statusTextEl = document.getElementById('statusText');
+    const turnDotEl = document.getElementById('turnDot');
+    const modeLabelEl = document.getElementById('modeLabel');
+    const modeBtn = document.getElementById('modeBtn');
+    const restartBtn = document.getElementById('restartBtn');
+    const overlay = document.getElementById('overlay');
+    const winnerTitle = document.getElementById('winnerTitle');
+    const winnerDesc = document.getElementById('winnerDesc');
+    const playAgainBtn = document.getElementById('playAgainBtn');
+
+    function createCatSvg(color) {
+      const isWhite = color === 'w';
+      const furFill = isWhite ? '#ffffff' : '#2b262d';
+      const furStroke = isWhite ? '#c97da3' : '#120f14';
+      const innerEar = isWhite ? '#ffc2e0' : '#8f3f67';
+      const eyeColor = isWhite ? '#3b2430' : '#ffd166';
+      const noseColor = '#ff66a3';
+      const whiskerColor = isWhite ? '#b86b92' : '#9c8a96';
+
+      return `
+        <svg viewBox="0 0 64 64" aria-hidden="true">
+          <!-- Ears -->
+          <polygon points="12,26 15,8 28,19" fill="${furFill}" stroke="${furStroke}" stroke-width="2.5" stroke-linejoin="round"/>
+          <polygon points="52,26 49,8 36,19" fill="${furFill}" stroke="${furStroke}" stroke-width="2.5" stroke-linejoin="round"/>
+          <polygon points="15,23 17,12 25,19" fill="${innerEar}"/>
+          <polygon points="49,23 47,12 39,19" fill="${innerEar}"/>
+          <!-- Head -->
+          <ellipse cx="32" cy="36" rx="22" ry="19" fill="${furFill}" stroke="${furStroke}" stroke-width="2.5"/>
+          <!-- Eyes -->
+          <circle cx="23" cy="34" r="3.4" fill="${eyeColor}"/>
+          <circle cx="41" cy="34" r="3.4" fill="${eyeColor}"/>
+          <circle cx="24" cy="33" r="1.2" fill="#ffffff"/>
+          <circle cx="42" cy="33" r="1.2" fill="#ffffff"/>
+          <!-- Nose & Mouth -->
+          <polygon points="29.5,39 34.5,39 32,42.2" fill="${noseColor}"/>
+          <path d="M 32 42.2 Q 28.5 46 25.5 44" fill="none" stroke="${furStroke}" stroke-width="2" stroke-linecap="round"/>
+          <path d="M 32 42.2 Q 35.5 46 38.5 44" fill="none" stroke="${furStroke}" stroke-width="2" stroke-linecap="round"/>
+          <!-- Whiskers -->
+          <line x1="8" y1="35" x2="17" y2="37" stroke="${whiskerColor}" stroke-width="1.8" stroke-linecap="round"/>
+          <line x1="8" y1="41" x2="17" y2="41" stroke="${whiskerColor}" stroke-width="1.8" stroke-linecap="round"/>
+          <line x1="56" y1="35" x2="47" y2="37" stroke="${whiskerColor}" stroke-width="1.8" stroke-linecap="round"/>
+          <line x1="56" y1="41" x2="47" y2="41" stroke="${whiskerColor}" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      `;
+    }
+
+    let grid = [];
+    let turn = 'w';
+    let selected = null;
+    let validMoves = [];
+    let mustContinueFrom = null;
+    let vsBot = true;
+    let gameEnded = false;
+    let botTimeout = null;
+
+    function initGame() {
+      if (botTimeout) clearTimeout(botTimeout);
+      grid = Array.from({ length: 8 }, () => Array(8).fill(null));
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          if ((r + c) % 2 === 1) {
+            if (r < 3) grid[r][c] = { color: 'b', king: false };
+            else if (r > 4) grid[r][c] = { color: 'w', king: false };
+          }
+        }
+      }
+      turn = 'w';
+      selected = null;
+      validMoves = [];
+      mustContinueFrom = null;
+      gameEnded = false;
+      overlay.classList.add('hidden');
+      updateUI();
+      renderBoard();
+    }
+
+    function inBounds(r, c) {
+      return r >= 0 && r < 8 && c >= 0 && c < 8;
+    }
+
+    function getCapturesForPiece(boardState, r, c) {
+      const piece = boardState[r][c];
+      if (!piece) return [];
+      const dirs = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
+      const captures = [];
+
+      if (!piece.king) {
+        for (const [dr, dc] of dirs) {
+          const midR = r + dr;
+          const midC = c + dc;
+          const landR = r + dr * 2;
+          const landC = c + dc * 2;
+          if (
+            inBounds(landR, landC) &&
+            boardState[midR][midC] &&
+            boardState[midR][midC].color !== piece.color &&
+            !boardState[landR][landC]
+          ) {
+            captures.push({
+              fromR: r, fromC: c,
+              toR: landR, toC: landC,
+              capR: midR, capC: midC
+            });
+          }
+        }
+      } else {
+        for (const [dr, dc] of dirs) {
+          let step = 1;
+          let enemyPos = null;
+          while (true) {
+            const nr = r + dr * step;
+            const nc = c + dc * step;
+            if (!inBounds(nr, nc)) break;
+            const cell = boardState[nr][nc];
+            if (!enemyPos) {
+              if (!cell) {
+                step++;
+                continue;
+              }
+              if (cell.color === piece.color) break;
+              enemyPos = { r: nr, c: nc };
+            } else {
+              if (cell) break;
+              captures.push({
+                fromR: r, fromC: c,
+                toR: nr, toC: nc,
+                capR: enemyPos.r, capC: enemyPos.c
+              });
+            }
+            step++;
+          }
+        }
+      }
+      return captures;
+    }
+
+    function getSimpleMovesForPiece(boardState, r, c) {
+      const piece = boardState[r][c];
+      if (!piece) return [];
+      const moves = [];
+
+      if (!piece.king) {
+        const dirs = piece.color === 'w' ? [[-1, -1], [-1, 1]] : [[1, -1], [1, 1]];
+        for (const [dr, dc] of dirs) {
+          const nr = r + dr;
+          const nc = c + dc;
+          if (inBounds(nr, nc) && !boardState[nr][nc]) {
+            moves.push({ fromR: r, fromC: c, toR: nr, toC: nc, capR: null, capC: null });
+          }
+        }
+      } else {
+        const dirs = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
+        for (const [dr, dc] of dirs) {
+          let step = 1;
+          while (true) {
+            const nr = r + dr * step;
+            const nc = c + dc * step;
+            if (!inBounds(nr, nc) || boardState[nr][nc]) break;
+            moves.push({ fromR: r, fromC: c, toR: nr, toC: nc, capR: null, capC: null });
+            step++;
+          }
+        }
+      }
+      return moves;
+    }
+
+    function getAllMoves(boardState, color, forcedPiece = null) {
+      if (forcedPiece) {
+        return getCapturesForPiece(boardState, forcedPiece.r, forcedPiece.c);
+      }
+
+      let allCaptures = [];
+      let allSimple = [];
+
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          if (boardState[r][c] && boardState[r][c].color === color) {
+            allCaptures.push(...getCapturesForPiece(boardState, r, c));
+            allSimple.push(...getSimpleMovesForPiece(boardState, r, c));
+          }
+        }
+      }
+
+      return allCaptures.length > 0 ? allCaptures : allSimple;
+    }
+
+    function selectCell(r, c) {
+      if (gameEnded) return;
+      if (vsBot && turn === 'b') return;
+
+      const move = validMoves.find(m => m.toR === r && m.toC === c);
+      if (move) {
+        executeMove(move);
+        return;
+      }
+
+      if (mustContinueFrom && (r !== mustContinueFrom.r || c !== mustContinueFrom.c)) {
+        return;
+      }
+
+      const piece = grid[r][c];
+      if (piece && piece.color === turn) {
+        const allAllowed = getAllMoves(grid, turn, mustContinueFrom);
+        const pieceMoves = allAllowed.filter(m => m.fromR === r && m.fromC === c);
+        if (pieceMoves.length > 0) {
+          selected = { r, c };
+          validMoves = pieceMoves;
+          haptic('light');
+        } else {
+          selected = null;
+          validMoves = [];
+          haptic('error');
+        }
+        renderBoard();
+      }
+    }
+
+    function executeMove(move) {
+      const piece = grid[move.fromR][move.fromC];
+      grid[move.toR][move.toC] = piece;
+      grid[move.fromR][move.fromC] = null;
+
+      let captured = false;
+      if (move.capR !== null) {
+        grid[move.capR][move.capC] = null;
+        captured = true;
+        haptic('medium');
+      } else {
+        haptic('light');
+      }
+
+      if (!piece.king) {
+        if ((piece.color === 'w' && move.toR === 0) || (piece.color === 'b' && move.toR === 7)) {
+          piece.king = true;
+          haptic('success');
+        }
+      }
+
+      if (captured) {
+        const furtherCaptures = getCapturesForPiece(grid, move.toR, move.toC);
+        if (furtherCaptures.length > 0) {
+          mustContinueFrom = { r: move.toR, c: move.toC };
+          selected = { r: move.toR, c: move.toC };
+          validMoves = furtherCaptures;
+          updateUI();
+          renderBoard();
+
+          if (vsBot && turn === 'b') {
+            botTimeout = setTimeout(makeBotMove, 420);
+          }
+          return;
+        }
+      }
+
+      mustContinueFrom = null;
+      selected = null;
+      validMoves = [];
+      turn = turn === 'w' ? 'b' : 'w';
+
+      updateUI();
+      renderBoard();
+
+      if (checkEndGame()) return;
+
+      if (vsBot && turn === 'b') {
+        botTimeout = setTimeout(makeBotMove, 450);
+      }
+    }
+
+    function makeBotMove() {
+      if (gameEnded || turn !== 'b') return;
+      const moves = getAllMoves(grid, 'b', mustContinueFrom);
+      if (moves.length === 0) {
+        checkEndGame();
+        return;
+      }
+
+      let bestScore = -Infinity;
+      let bestMoves = [];
+
+      for (const m of moves) {
+        let s = Math.random() * 2;
+        if (m.capR !== null) s += 10;
+        if (m.toR === 7 && !grid[m.fromR][m.fromC].king) s += 8;
+        if (m.toC >= 2 && m.toC <= 5) s += 1.5;
+
+        if (m.capR === null) {
+          const clone = grid.map(row => row.map(cell => cell ? { ...cell } : null));
+          clone[m.toR][m.toC] = clone[m.fromR][m.fromC];
+          clone[m.fromR][m.fromC] = null;
+          const oppMoves = getAllMoves(clone, 'w');
+          if (oppMoves.some(om => om.capR !== null)) s -= 7;
+        }
+
+        if (s > bestScore) {
+          bestScore = s;
+          bestMoves = [m];
+        } else if (Math.abs(s - bestScore) < 0.01) {
+          bestMoves.push(m);
+        }
+      }
+
+      const chosen = bestMoves[Math.floor(Math.random() * bestMoves.length)];
+      executeMove(chosen);
+    }
+
+    function checkEndGame() {
+      let w = 0, b = 0;
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          if (grid[r][c]?.color === 'w') w++;
+          if (grid[r][c]?.color === 'b') b++;
+        }
+      }
+
+      const nextMoves = getAllMoves(grid, turn);
+      if (w === 0 || (turn === 'w' && nextMoves.length === 0)) {
+        endGame('Победа чёрных котиков!', vsBot ? 'Бот выиграл эту партию.' : 'Чёрные котики победили.');
+        return true;
+      }
+      if (b === 0 || (turn === 'b' && nextMoves.length === 0)) {
+        endGame('Победа белых котиков!', 'Мурр! Белые котики победили!');
+        return true;
+      }
+      return false;
+    }
+
+    function endGame(title, desc) {
+      gameEnded = true;
+      haptic('success');
+      winnerTitle.textContent = title;
+      winnerDesc.textContent = desc;
+      overlay.classList.remove('hidden');
+    }
+
+    function updateUI() {
+      let w = 0, b = 0;
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          if (grid[r][c]?.color === 'w') w++;
+          if (grid[r][c]?.color === 'b') b++;
+        }
+      }
+      whiteCountEl.textContent = w;
+      blackCountEl.textContent = b;
+
+      const mustCapture = getAllMoves(grid, turn, mustContinueFrom).some(m => m.capR !== null);
+      if (turn === 'w') {
+        turnDotEl.style.background = '#ffffff';
+        statusTextEl.textContent = mustCapture ? 'Ход белых котиков (нужно бить!)' : 'Ход белых котиков';
+      } else {
+        turnDotEl.style.background = '#2b262d';
+        if (vsBot) {
+          statusTextEl.textContent = 'Чёрный котик-бот думает...';
+        } else {
+          statusTextEl.textContent = mustCapture ? 'Ход чёрных котиков (нужно бить!)' : 'Ход чёрных котиков';
+        }
+      }
+    }
+
+    function renderBoard() {
+      boardEl.innerHTML = '';
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          const cell = document.createElement('div');
+          const isDark = (r + c) % 2 === 1;
+          cell.className = 'cell ' + (isDark ? 'dark' : 'light');
+
+          if (selected && selected.r === r && selected.c === c) {
+            cell.classList.add('selected');
+          }
+
+          const moveHint = validMoves.find(m => m.toR === r && m.toC === c);
+          if (moveHint) {
+            cell.classList.add(moveHint.capR !== null ? 'capture-hint' : 'hint');
+          }
+
+          const piece = grid[r][c];
+          if (piece) {
+            const catEl = document.createElement('div');
+            catEl.className = 'cat-piece ' + (piece.color === 'w' ? 'white' : 'black');
+            if (piece.king) catEl.classList.add('king');
+            catEl.innerHTML = createCatSvg(piece.color);
+            cell.appendChild(catEl);
+          }
+
+          if (isDark) {
+            cell.addEventListener('click', () => selectCell(r, c));
+          }
+          boardEl.appendChild(cell);
+        }
+      }
+    }
+
+    modeBtn.addEventListener('click', () => {
+      vsBot = !vsBot;
+      modeLabelEl.textContent = vsBot ? 'Против бота' : 'На двоих';
+      modeBtn.textContent = vsBot ? 'Режим: Бот' : 'Режим: 2 игрока';
+      initGame();
+    });
+
+    restartBtn.addEventListener('click', initGame);
+    playAgainBtn.addEventListener('click', initGame);
+
+    initGame();
+  </script>
+</body>
+</html>
